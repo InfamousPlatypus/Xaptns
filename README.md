@@ -55,6 +55,15 @@ The first time you run a search, Xaptns will:
 
 This one-time process may take 1-2 minutes on slower hardware. Subsequent runs will use the cache and start significantly faster.
 
+## Data Freshness & Infrastructure
+
+Xaptns is designed to be lightweight and "infrastructure-agnostic."
+
+- **Model Updates**: We use the **SPECTER 2.0** model, which is a pre-trained foundation model provided by the Allen Institute for AI. Xaptns does not require the heavy infrastructure needed to train or fine-tune this model; we simply consume the optimized weights.
+- **Live Discovery**: Instead of hosting a multi-terabyte static index of all 2M+ arXiv papers (which would require significant infrastructure), Xaptns uses a **Live Discovery** approach. It queries the arXiv and Semantic Scholar APIs in real-time to find candidate papers.
+- **Auto-Refresh**: Data is "refreshed" automatically with every search. Since we pull metadata and recommendations directly from source APIs, you always see the latest preprints and citation counts without needing a manual update process.
+- **Scalability**: For users with larger hardware, the underlying `USearch` engine supports memory-mapped indices on disk, allowing for the scaling of searches to millions of vectors if a local corpus is desired.
+
 ## Troubleshooting
 
 Xaptns follows a "fail visibly" principle. If a network error occurs or a hardware backend fails, the full traceback and error message will be displayed to help diagnose the issue.
