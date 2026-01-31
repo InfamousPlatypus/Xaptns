@@ -1,60 +1,67 @@
-Xaptns (χάρτης)
-![Logo Placeholder: 8-bit cape with an X]
+# Xaptns (χάρτης)
 
-Xaptns (pronounced Captain) is a high-performance, non-LLM open-source engine designed to navigate the n-dimensional seas of scientific literature. By synthesizing citation-informed embeddings with structural graph analysis, Xaptns allows researchers to map the intellectual lineage of any arXiv paper, discover hidden cross-disciplinary links, and identify the foundational "dependency nodes" of any research cluster.
+Xaptns (pronounced Captain) is a high-performance engine designed to navigate the n-dimensional seas of scientific literature. By synthesizing citation-informed embeddings with structural graph analysis, Xaptns allows researchers to map the intellectual lineage of any arXiv paper, discover hidden cross-disciplinary links, and identify foundational "dependency nodes".
 
-The name is a visual play on the word "Captain" while drawing its roots from the Greek χάρτης (khártēs), meaning map, chart, or sheet of paper.
+## Core Mission: Structural Over Generative
+In an era dominated by Large Language Models, Xaptns takes a deterministic and structural approach. We map the actual vector-space proximity and citation dependencies of the scientific record, ensuring links are based on real-world citations and mathematical foundations.
 
-Core Mission: Structural Over Generative
-In an era dominated by Large Language Models, Xaptns takes a deterministic and structural approach. We don't "hallucinate" summaries; we map the actual vector-space proximity and citation dependencies of the scientific record. This ensures that when Xaptns identifies a link between quantum computing and organic chemistry, it is based on shared mathematical foundations and real-world citations, not linguistic probability.
+## Key Features
+- **n-Dimensional Semantic Clustering**: Maps papers into a 768-dimensional space using SPECTER 2.0.
+- **Hardware Acceleration**: Targets Intel Haswell-ULT iGPUs, Intel Neural Compute Stick 2 (NCS2), and AMD GPUs via OpenVINO.
+- **Citation Ranking**: Identifies foundational papers by finding common citations among semantically similar results.
+- **Model Caching**: Local caching of OpenVINO IR models to ensure fast startup on limited hardware.
 
-Key Features
-n-Dimensional Semantic Clustering: Maps papers into a 768-dimensional space where proximity is determined by thematic relevance, not just metadata tags.
+## Installation
 
-Citation-Informed Discovery: Utilizes models like SPECTER 2.0  that use citation graphs as a supervision signal, ensuring that "similar" papers are those that truly belong in the same research conversation.
+### Prerequisites
+- Python 3.10+
+- OpenVINO supported hardware (optional but recommended for speed)
 
-Heterogeneous Ingestion: Drop in an arXiv ID, a raw text abstract, or a PDF. Xaptns uses GROBID to extract structured bibliographies from unstructured files.
+### Setup
+```bash
+git clone <repo-url>
+cd xaptns
+pip install -e .
+```
 
-Citation Aggregator: Find the "most referenced" papers within a specific cluster of results to identify the foundational work that everyone in that niche is citing.
+## Usage
 
-Custom Dependency Graphs: Build a "Papers of Interest" list to generate a chronological and logical map of research evolution.
+The primary interface is the `xaptns` CLI.
 
-The Engine Room (Architecture)
-Xaptns is built as a modular pipeline for performance and transparency:
+### Search for Similar Papers
+Find the top 5 most similar papers to a given arXiv ID and list the top 3 common citations among them:
 
-Ingestion Layer: Resolves arXiv IDs via the arXiv API  and parses PDFs using a GROBID Docker instance.
+```bash
+xaptns search --id 2301.10140 --limit 5 --rank-citations 3
+```
 
-Embedding Layer: Vectorizes text using SPECTER 2.0, providing document-level representations that solve the "cold start" problem for uncited new preprints.
+**Options:**
+- `--id`: (Required) The arXiv ID of the seed paper (e.g., `2301.10140`).
+- `--limit`: Number of semantically similar papers to retrieve (default: 10).
+- `--rank-citations`: Number of top foundational papers (common citations) to display (default: 3).
 
-Search Layer: Employs USearch, a lightweight HNSW engine that is 10x faster than traditional vector search libraries for near-real-time clustering.
+## Hardware Support & Performance
 
-Graph Layer: Syncs with OpenAlex and Semantic Scholar to build out full citation and reference networks.
+Xaptns is optimized for limited hardware:
+- **Intel Graphics/NCS2**: Automatically detected and used via OpenVINO.
+- **AMD GPUs**: Supported via OpenVINO's OpenCL backend.
+- **CPU Fallback**: Uses optimized PyTorch CPU kernels if no specialized hardware is found.
 
-Getting Started
-Prerequisites
-Docker (for GROBID parsing)
+### First Run Note
+The first time you run a search, Xaptns will:
+1. Download the SPECTER 2.0 model (~400MB).
+2. Convert the model to OpenVINO IR format.
+3. Cache the converted model in `.model_cache/`.
 
-Python 3.10+
+This one-time process may take 1-2 minutes on slower hardware. Subsequent runs will use the cache and start significantly faster.
 
-Installation
-Bash
+## Troubleshooting
 
-pip install xaptns
-docker pull lfoppiano/grobid:0.7.1
-Basic Usage
-Find the 10 most similar papers to a given arXiv ID and list the top 3 common citations among them:
+Xaptns follows a "fail visibly" principle. If a network error occurs or a hardware backend fails, the full traceback and error message will be displayed to help diagnose the issue.
 
-Bash
+### Common Issues
+- **Connection Timeouts**: Check your internet connection; Xaptns relies on the arXiv and Semantic Scholar APIs.
+- **NaN Outputs**: If you see `nan` in distances, ensure your OpenVINO drivers are up to date. The system will attempt to fallback to CPU if instability is detected.
 
-xaptns search --id 2301.10140 --limit 10 --rank-citations 3
-Roadmap
-[ ] D3.js-powered interactive "Dependency Graph" visualizer.
-
-[ ] Custom recommendation engine based on "Anchor-based traversal" of the semantic similarity graph.
-
-[ ] Local library syncing with Zotero and BibTeX.
-
-License
+## License
 Xaptns is released under the MIT License.
-
-Captain your own discovery. Map the uncharted.
