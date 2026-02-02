@@ -7,9 +7,14 @@ In an era dominated by Large Language Models, Xaptns takes a deterministic and s
 
 ## Key Features
 - **n-Dimensional Semantic Clustering**: Maps papers into a 768-dimensional space using SPECTER 2.0.
-- **Hardware Acceleration**: Targets Intel Haswell-ULT iGPUs, Intel Neural Compute Stick 2 (NCS2), and AMD GPUs via OpenVINO.
-- **Citation Ranking**: Identifies foundational papers by finding common citations among semantically similar results.
-- **Model Caching**: Local caching of OpenVINO IR models to ensure fast startup on limited hardware.
+- **Hardware Acceleration**: Targets Intel CPUs, iGPUs, NPUs, and the Neural Compute Stick 2 (NCS2) via OpenVINO and ONNX Runtime.
+- **Cargo Crane Ingestion**: Bulk processing of arXiv datasets with OpenAlex and Semantic Scholar enrichment.
+- **Efficient Indexing**: USearch-powered vector search with binary quantization for 32x memory savings.
+- **Hybrid Storage**: SQLite + sqlite-vec for reliable metadata and vector persistence.
+- **N-Way Centroids**: Calculate the synthetic interest vector $V_C$ to find the thematic center of multiple topics.
+- **Bridge Discovery**: Identify papers that link disparate research clusters using Betweenness Centrality.
+- **Void Analysis**: Use Persistent Homology (TDA) to detect topological gaps in the arXiv corpus.
+- **SAE Concept Mapping**: Disentangle high-dimensional vectors into human-readable concepts using Sparse Autoencoders.
 
 ## Installation
 
@@ -28,6 +33,21 @@ pip install -e .
 
 The primary interface is the `xaptns` CLI.
 
+### Quick Start (20 Minutes)
+1. **Install**: `pip install -e .`
+2. **Ingest & Search**:
+   ```bash
+   xaptns search --id 2301.10140 --limit 5
+   ```
+3. **Find Centroid**:
+   ```bash
+   xaptns centroid --ids 2301.10140,2212.11223
+   ```
+4. **Detect Voids**:
+   ```bash
+   xaptns voids --ids 2301.10140,2212.11223,2305.11111,2306.22222,2307.33333
+   ```
+
 ### Search for Similar Papers
 Find the top 5 most similar papers to a given arXiv ID and list the top 3 common citations among them:
 
@@ -45,7 +65,27 @@ xaptns search --id 2301.10140 --limit 5 --rank-citations 3
 Xaptns is optimized for limited hardware:
 - **Intel Graphics/NCS2**: Automatically detected and used via OpenVINO.
 - **AMD GPUs**: Supported via OpenVINO's OpenCL backend.
+- **NPU/Laptop Acceleration**: Targets modern NPUs via ONNX Runtime OpenVINO execution provider.
 - **CPU Fallback**: Uses optimized PyTorch CPU kernels if no specialized hardware is found.
+
+### Hardware Optimization Guide
+To force a specific device, set the `OPENVINO_DEVICE` environment variable:
+```bash
+export OPENVINO_DEVICE=MYRIAD  # For Intel NCS2
+export OPENVINO_DEVICE=GPU     # For Integrated/Discrete GPU
+export OPENVINO_DEVICE=NPU     # For modern AI chips
+```
+
+## Mathematical Appendices
+
+### Synthetic Interest Vector ($V_C$)
+$V_C = \frac{1}{N} \sum_{i=1}^N v_i$
+
+### Bridge Papers
+Calculated using Betweenness Centrality on a semantic similarity graph $G=(V,E)$ where $E = \{ (u,v) \mid \text{cos\_sim}(u,v) > 0.7 \}$.
+
+### Void Detection
+Uses Ripser for persistent homology to find $H_1$ and $H_2$ features. Gap coordinates are identified using Maximin sampling within the bounding box of the research cluster.
 
 ### First Run Note
 The first time you run a search, Xaptns will:

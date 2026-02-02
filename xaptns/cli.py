@@ -1,10 +1,15 @@
 import click
 import sys
 import requests
+import json
 from collections import Counter
 from xaptns.ingestion import fetch_arxiv_data, fetch_citations
 from xaptns.model import Embedder
 from xaptns.search import VectorIndex
+from xaptns.navigator import Navigator
+from xaptns.cartographer import Cartographer
+from xaptns.concepts import ConceptMapper
+import numpy as np
 
 @click.group()
 def cli():
@@ -132,6 +137,126 @@ def search(id, limit, rank_citations):
         # Visible error as requested
         import traceback
         traceback.print_exc()
+        sys.exit(1)
+
+@cli.command()
+@click.option('--ids', required=True, help='Comma-separated arXiv IDs.')
+@click.option('--limit', default=10, help='Number of papers to find near the center.')
+def centroid(ids, limit):
+    """Find the thematic center of multiple papers."""
+    try:
+        id_list = [i.strip() for i in ids.split(',')]
+        embedder = Embedder()
+        vindex = VectorIndex()
+        nav = Navigator(vindex)
+
+        vectors = []
+        for aid in id_list:
+            paper = fetch_arxiv_data(aid)
+            if paper:
+                text = f"{paper['title']} {paper['abstract']}"
+                vec = embedder.embed(text)
+                vectors.append(vec)
+
+        if not vectors:
+            click.echo("Error: No papers found to calculate centroid.", err=True)
+            return
+
+        c_vec = nav.calculate_centroid(vectors)
+        results = vindex.search(c_vec, limit=limit)
+
+        click.echo("\n" + "="*60)
+        click.echo(f"{'Papers Near Synthetic Centroid':^60}")
+        click.echo("="*60)
+        for i, res in enumerate(results, 1):
+            click.echo(f"{i:2d}. [{res['arxiv_id']:>12}] {res['metadata']['title'][:70]}")
+            click.echo(f"    (Distance: {res['distance']:.4f})")
+
+    except Exception as e:
+        click.echo(f"\nFATAL ERROR: {e}", err=True)
+        sys.exit(1)
+
+@cli.command()
+@click.option('--ids', required=True, help='Comma-separated arXiv IDs to analyze for voids.')
+def voids(ids):
+    """Detect research voids and map them to concepts."""
+    try:
+        id_list = [i.strip() for i in ids.split(',')]
+        vindex = VectorIndex()
+        carto = Cartographer(vindex)
+        mapper = ConceptMapper()
+
+        vectors = []
+        for aid in id_list:
+            vindex.cursor.execute("SELECT vector FROM papers WHERE arxiv_id = ?", (aid,))
+            row = vindex.cursor.fetchone()
+            if row:
+                vectors.append(np.frombuffer(row[0], dtype=np.float32))
+
+        if len(vectors) < 5:
+            click.echo("Error: Not enough papers in database to perform TDA. Run 'search' or 'centroid' first to ingest them.", err=True)
+            return
+
+        vec_arr = np.stack(vectors)
+        detected = carto.detect_voids(vec_arr)
+
+        click.echo("\n" + "="*60)
+        click.echo(f"{'Topological Void Analysis':^60}")
+        click.echo("="*60)
+
+        if not detected:
+            click.echo("No significant voids detected. Searching for low-density 'uncharted' regions...")
+        else:
+            for i, (birth, death, dim) in enumerate(detected, 1):
+                click.echo(f"Void {i}: Dimension {dim}, Persistence {death-birth:.4f} (Birth: {birth:.4f}, Death: {death:.4f})")
+
+        # Identify "Ingredient Concepts" for a point in a gap
+        gaps = carto.find_gap_coordinates(vec_arr)
+        if gaps:
+            gap_vec = gaps[0]
+            concepts = mapper.decode(gap_vec)
+
+            click.echo("\n[*] Closest 'Uncharted' Gap discovered.")
+            click.echo("  --> Ingredient Concepts for this territory:")
+            for c in concepts:
+                click.echo(f"      - {c['label']} (Activation: {c['activation']:.2f})")
+        else:
+            click.echo("Could not identify a stable gap.")
+
+    except Exception as e:
+        click.echo(f"\nFATAL ERROR: {e}", err=True)
+        sys.exit(1)
+
+@cli.command()
+@click.option('--cluster-a', 'cluster_a', required=True, help='Comma-separated arXiv IDs for Cluster A.')
+@click.option('--cluster-b', 'cluster_b', required=True, help='Comma-separated arXiv IDs for Cluster B.')
+def bridge(cluster_a, cluster_b):
+    """Identify bridge papers between two clusters."""
+    try:
+        a_ids = [i.strip() for i in cluster_a.split(',')]
+        b_ids = [i.strip() for i in cluster_b.split(',')]
+
+        vindex = VectorIndex()
+        nav = Navigator(vindex)
+
+        bridges = nav.find_bridge_papers(a_ids, b_ids)
+
+        click.echo("\n" + "="*60)
+        click.echo(f"{'Identified Bridge Papers':^60}")
+        click.echo("="*60)
+        for i, b in enumerate(bridges, 1):
+            # Fetch title if possible
+            title = "Unknown Title"
+            vindex.cursor.execute("SELECT metadata FROM papers WHERE arxiv_id = ?", (b['arxiv_id'],))
+            row = vindex.cursor.fetchone()
+            if row:
+                title = json.loads(row[0]).get('title', 'Unknown Title')
+
+            click.echo(f"{i:2d}. [{b['arxiv_id']:>12}] {title[:70]}")
+            click.echo(f"    (Betweenness Score: {b['centrality_score']:.4f})")
+
+    except Exception as e:
+        click.echo(f"\nFATAL ERROR: {e}", err=True)
         sys.exit(1)
 
 if __name__ == '__main__':
